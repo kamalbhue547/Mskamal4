@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#06070d" />
+    <meta name="description" content="An interactive journey into the physics and beauty of a black hole. Explore the event horizon, bend starlight, and tune the accretion disk." />
+    <title>Singularity — Into the Black Hole</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="universe" aria-label="Interactive 3D black hole visualization"></canvas>
+      <div class="vignette"></div>
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Singularity home"><span class="brand-mark"><i></i></span><span>SINGULARITY<span class="brand-dot">.</span></span></a>
+        <div class="top-meta"><span class="live-dot"></span><span>LIVE SIMULATION</span><span class="meta-divider"></span><span class="desktop-meta">SCHWARZSCHILD MODEL <b>·</b> v1.0</span></div>
+        <a class="github-link" href="https://github.com/kamalbhue547/Mskamal4" target="_blank" rel="noreferrer"><span>★</span> <span class="star-label">Star this project</span><span class="arrow">↗</span></a>
+      </header>
+
+      <main>
+        <section class="intro" aria-label="Black hole overview">
+          <div class="eyebrow"><span class="eyebrow-line"></span> A JOURNEY BEYOND THE KNOWN</div>
+          <h1>Where light<br />meets <em>forever.</em></h1>
+          <p class="intro-copy">A black hole is not a hole in space. It's a place where space itself falls in.</p>
+          <button class="explore-button" id="explore"><span class="play-icon">▶</span> <span>ENTER THE EVENT HORIZON</span><span class="button-arrow">↗</span></button>
+          <div class="scroll-note"><span class="scroll-line"></span> DRAG TO ORBIT <span class="scroll-sep">/</span> SCROLL TO APPROACH</div>
+        </section>
+
+        <aside class="readout" aria-label="Live simulation data">
+          <div class="readout-heading"><span>OBSERVATORY / 01</span><span class="signal"><i></i> TRANSMITTING</span></div>
+          <div class="readout-title">LIVE TELEMETRY</div>
+          <div class="data-row"><span class="data-label">OBJECT CLASS</span><span class="data-value">STELLAR BLACK HOLE</span></div>
+          <div class="data-row"><span class="data-label">MASS</span><span class="data-value" id="mass-value">4.3M <small>☉</small></span></div>
+          <div class="data-row"><span class="data-label">EVENT HORIZON</span><span class="data-value" id="radius-value">12.7 <small>km</small></span></div>
+          <div class="data-row"><span class="data-label">SPACETIME CURVATURE</span><span class="data-value accent-value" id="curvature-value">CRITICAL</span></div>
+          <div class="readout-rule"></div>
+          <div class="fact-label">DID YOU KNOW?</div>
+          <p class="fact-copy">At the event horizon, escape velocity exceeds the speed of light. No information can return.</p>
+          <div class="readout-foot"><span>RA 17h 45m 40.0s</span><span>DEC −29° 00′ 28″</span></div>
+        </aside>
+
+        <section class="controls" aria-label="Simulation controls">
+          <div class="controls-top"><div><span class="control-kicker">FLIGHT CONTROLS</span><h2>Shape the cosmos</h2></div><button id="collapse-controls" class="collapse-button" aria-label="Collapse controls">−</button></div>
+          <div class="control-content">
+            <label class="slider-control" for="mass-slider"><span class="slider-label">BLACK HOLE MASS <b id="mass-number">4.3</b><small> M☉</small></span><input id="mass-slider" type="range" min="1" max="12" step="0.1" value="4.3" /><span class="range-ends"><span>STELLAR</span><span>SUPERMASSIVE</span></span></label>
+            <label class="slider-control" for="speed-slider"><span class="slider-label">TIME DILATION <b id="speed-number">1.0</b><small>×</small></span><input id="speed-slider" type="range" min="0" max="3" step="0.1" value="1" /><span class="range-ends"><span>FROZEN</span><span>RELATIVISTIC</span></span></label>
+            <div class="toggle-row"><span class="slider-label">GRAVITATIONAL LENSING</span><button id="lens-toggle" class="switch is-on" role="switch" aria-checked="true" aria-label="Toggle gravitational lensing"><span></span></button></div>
+            <div class="toggle-row"><span class="slider-label">ACCRETION DISK</span><button id="disk-toggle" class="switch is-on" role="switch" aria-checked="true" aria-label="Toggle accretion disk"><span></span></button></div>
+          </div>
+        </section>
+
+        <div class="scene-label"><span class="scene-crosshair">⊕</span><div><span>THE PHOTON SPHERE</span><small>LIGHT ORBITS AT 1.5× THE EVENT HORIZON</small></div></div>
+        <div class="coordinates"><span>GALACTIC CENTER</span><span>·</span><span>26,000 LIGHT YEARS FROM EARTH</span></div>
+        <div class="corner-mark">Sgr A* <span>↗</span></div>
+      </main>
+      <footer><span>AN INTERACTIVE EXPLORATION OF GENERAL RELATIVITY</span><span>MADE FOR THE CURIOUS <b>✳</b></span></footer>
+      <div id="toast" role="status" aria-live="polite"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
