@@ -28,7 +28,7 @@ npm run preview
 
 ## How it works
 
-The scene is drawn in WebGL with Three.js. A procedural GLSL shader animates turbulence and heat across the accretion disk; the star field and nearby dust are generated at runtime, so no large external assets are needed. Responsive HTML overlays provide observatory telemetry and interactive controls.
+The scene is drawn in WebGL with Three.js. A procedural GLSL shader animates turbulence and heat across the accretion disk; a screen-space post-processing shader bends the rendered star field and disk around the projected black-hole shadow to approximate gravitational lensing. The star field and nearby dust are generated at runtime, so no large external assets are needed. Responsive HTML overlays provide observatory telemetry and interactive controls.
 
 This is an educational visualization, not a numerical relativity solver. The horizon radius follows the Schwarzschild estimate `rₛ = 2GM/c²` (about 2.95 km per solar mass). The disk's glow, lensed photon ring, and time-flow controls are artistic representations designed to make the concepts explorable.
 
