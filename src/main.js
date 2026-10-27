@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import './style.css';
 
 const canvas = document.querySelector('#universe');
@@ -13,6 +17,43 @@ renderer.toneMappingExposure = 1.15;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x07070d, 0.012);
 const camera = new THREE.PerspectiveCamera(43, window.innerWidth / window.innerHeight, 0.1, 120);
+
+const lensingPass = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null },
+    uLensCenter: { value: new THREE.Vector2(0.5, 0.5) },
+    uAspect: { value: window.innerWidth / window.innerHeight },
+    uLensRadius: { value: 0.03 },
+    uStrength: { value: 1.1 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform vec2 uLensCenter;
+    uniform float uAspect;
+    uniform float uLensRadius;
+    uniform float uStrength;
+    varying vec2 vUv;
+    void main(){
+      vec2 delta = vUv - uLensCenter;
+      vec2 radial = vec2(delta.x * uAspect, delta.y);
+      float radius = length(radial);
+      float safeRadius = max(radius, uLensRadius * 0.8);
+      float bend = uStrength * uLensRadius * uLensRadius / safeRadius;
+      float outsideHorizon = smoothstep(uLensRadius * 1.02, uLensRadius * 1.72, radius);
+      vec2 sourceDelta = delta - (radial / safeRadius) * vec2(1.0 / uAspect, 1.0) * bend * outsideHorizon;
+      vec2 sourceUv = clamp(uLensCenter + sourceDelta, vec2(0.001), vec2(0.999));
+      vec4 lensed = texture2D(tDiffuse, sourceUv);
+      vec4 original = texture2D(tDiffuse, vUv);
+      float blend = smoothstep(uLensRadius * 0.82, uLensRadius * 1.2, radius);
+      gl_FragColor = mix(original, lensed, blend);
+    }`
+});
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(lensingPass);
+composer.addPass(new OutputPass());
+
 const baseDistance = window.innerWidth < 650 ? 13.5 : 12;
 let cameraDistance = baseDistance;
 let targetDistance = baseDistance;
@@ -35,7 +76,7 @@ function ring(radius, tube, color, opacity) {
   return mesh;
 }
 const photonRing = ring(1.16, 0.018, 0xffa174, 0.68);
-ring(1.22, 0.045, 0xfd6d47, 0.12);
+const photonHaloRing = ring(1.22, 0.045, 0xfd6d47, 0.12);
 
 const diskMaterial = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
@@ -56,8 +97,6 @@ const diskMaterial = new THREE.ShaderMaterial({
       hot=mix(hot,vec3(0.45,0.12,0.11),smoothstep(0.75,1.0,center));
       float alpha=edge*(0.30+0.7*n)*(.52+.48*bands);
       gl_FragColor=vec4(hot,alpha);
-      #include <tonemapping_fragment>
-      #include <colorspace_fragment>
     }`
 });
 const disk = new THREE.Mesh(new THREE.TorusGeometry(2.12, 0.72, 48, 320), diskMaterial);
@@ -144,7 +183,7 @@ massSlider.addEventListener('input', () => {
   blackHole.scale.setScalar(0.82 + mass * 0.043); setSliderFill(massSlider);
 });
 speedSlider.addEventListener('input', () => { speed = Number(speedSlider.value); $('#speed-number').textContent = speed.toFixed(1); setSliderFill(speedSlider); });
-$('#lens-toggle').addEventListener('click', (event) => { lensing = !lensing; const button = event.currentTarget; button.classList.toggle('is-on', lensing); button.setAttribute('aria-checked', String(lensing)); photonRing.visible = lensing; });
+$('#lens-toggle').addEventListener('click', (event) => { lensing = !lensing; const button = event.currentTarget; button.classList.toggle('is-on', lensing); button.setAttribute('aria-checked', String(lensing)); photonRing.visible = photonHaloRing.visible = lensing; lensingPass.uniforms.uStrength.value = lensing ? 1.1 : 0; });
 $('#disk-toggle').addEventListener('click', (event) => { diskVisible = !diskVisible; const button = event.currentTarget; button.classList.toggle('is-on', diskVisible); button.setAttribute('aria-checked', String(diskVisible)); disk.visible = innerDisk.visible = outerDisk.visible = dust.visible = diskVisible; });
 $('#collapse-controls').addEventListener('click', (event) => { const panel = document.querySelector('.controls'); panel.classList.toggle('is-collapsed'); event.currentTarget.textContent = panel.classList.contains('is-collapsed') ? '+' : '−'; event.currentTarget.setAttribute('aria-label', panel.classList.contains('is-collapsed') ? 'Expand controls' : 'Collapse controls'); });
 let toastTimer;
@@ -175,10 +214,15 @@ function animate() {
   innerDisk.rotation.z = -elapsed * 0.015;
   outerDisk.rotation.z = elapsed * 0.009;
   stars.rotation.y = elapsed * 0.0015;
-  renderer.render(scene, camera);
+  camera.updateMatrixWorld();
+  const lensCenter = blackHole.getWorldPosition(new THREE.Vector3()).project(camera);
+  lensingPass.uniforms.uLensCenter.value.set(lensCenter.x * 0.5 + 0.5, lensCenter.y * 0.5 + 0.5);
+  lensingPass.uniforms.uAspect.value = camera.aspect;
+  lensingPass.uniforms.uLensRadius.value = (1.05 * blackHole.scale.x) / (2 * cameraDistance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)));
+  composer.render();
 }
 animate();
 window.addEventListener('resize', () => {
   const width = window.innerWidth, height = window.innerHeight;
-  camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  camera.aspect = width / height; camera.updateProjectionMatrix(); composer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); composer.setSize(width, height);
 });
