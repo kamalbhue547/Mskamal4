@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { apparentEinsteinRadiusUv, projectedRadiusUv, schwarzschildRadiusKm } from './physics.js';
 import './style.css';
 
 const canvas = document.querySelector('#universe');
@@ -23,30 +24,48 @@ const lensingPass = new ShaderPass({
     tDiffuse: { value: null },
     uLensCenter: { value: new THREE.Vector2(0.5, 0.5) },
     uAspect: { value: window.innerWidth / window.innerHeight },
-    uLensRadius: { value: 0.03 },
-    uStrength: { value: 1.1 },
+    uHorizonRadius: { value: 0.03 },
+    uEinsteinRadius: { value: 0.05 },
+    uStrength: { value: 1.4 },
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: `
     uniform sampler2D tDiffuse;
     uniform vec2 uLensCenter;
     uniform float uAspect;
-    uniform float uLensRadius;
+    uniform float uHorizonRadius;
+    uniform float uEinsteinRadius;
     uniform float uStrength;
     varying vec2 vUv;
     void main(){
       vec2 delta = vUv - uLensCenter;
       vec2 radial = vec2(delta.x * uAspect, delta.y);
       float radius = length(radial);
-      float safeRadius = max(radius, uLensRadius * 0.8);
-      float bend = uStrength * uLensRadius * uLensRadius / safeRadius;
-      float outsideHorizon = smoothstep(uLensRadius * 1.02, uLensRadius * 1.72, radius);
-      vec2 sourceDelta = delta - (radial / safeRadius) * vec2(1.0 / uAspect, 1.0) * bend * outsideHorizon;
-      vec2 sourceUv = clamp(uLensCenter + sourceDelta, vec2(0.001), vec2(0.999));
-      vec4 lensed = texture2D(tDiffuse, sourceUv);
+      vec2 direction = radial / max(radius, 0.00001);
+      vec2 directionUv = vec2(direction.x / uAspect, direction.y);
+
+      // Thin-lens point-mass mapping: beta = theta - theta_E^2 / theta.
+      // This naturally creates a second image on the opposite side of the lens.
+      float sourceRadius = radius - (uStrength * uEinsteinRadius * uEinsteinRadius) / max(radius, uHorizonRadius * 0.72);
+      vec2 sourceUv = clamp(uLensCenter + directionUv * sourceRadius, vec2(0.001), vec2(0.999));
       vec4 original = texture2D(tDiffuse, vUv);
-      float blend = smoothstep(uLensRadius * 0.82, uLensRadius * 1.2, radius);
-      gl_FragColor = mix(original, lensed, blend);
+      vec4 lensed = texture2D(tDiffuse, sourceUv);
+
+      float outsideShadow = smoothstep(uHorizonRadius * 0.92, uHorizonRadius * 1.2, radius);
+      float lensBlend = smoothstep(uHorizonRadius * 0.82, uHorizonRadius * 1.35, radius);
+      lensed = mix(original, lensed, outsideShadow * lensBlend);
+
+      // A restrained color split makes the strongly bent, high-energy light easier to see.
+      vec2 dispersion = directionUv * uHorizonRadius * 0.08 * outsideShadow;
+      float red = texture2D(tDiffuse, clamp(sourceUv + dispersion, vec2(0.001), vec2(0.999))).r;
+      float blue = texture2D(tDiffuse, clamp(sourceUv - dispersion, vec2(0.001), vec2(0.999))).b;
+      lensed.rgb = vec3(red, lensed.g, blue);
+
+      // Soft Einstein-ring glint: visual aid only, not emitted light from the lens.
+      float ringDistance = (radius - uEinsteinRadius) / max(uHorizonRadius * 0.13, 0.0001);
+      float ringGlow = exp(-ringDistance * ringDistance) * outsideShadow * 0.09;
+      lensed.rgb += vec3(1.0, 0.42, 0.2) * ringGlow;
+      gl_FragColor = mix(original, lensed, lensBlend);
     }`
 });
 const composer = new EffectComposer(renderer);
@@ -171,19 +190,22 @@ canvas.addEventListener('wheel', (event) => { targetDistance = THREE.MathUtils.c
 const $ = (selector) => document.querySelector(selector);
 const massSlider = $('#mass-slider');
 const speedSlider = $('#speed-slider');
+const lensSlider = $('#lens-slider');
 let speed = 1;
+let lensStrength = 1.4;
 let mass = 4.3;
 let lensing = true;
 let diskVisible = true;
 const setSliderFill = (input) => { const pct = ((input.value - input.min) / (input.max - input.min)) * 100; input.style.background = `linear-gradient(90deg,#ff986b 0%,#ff986b ${pct}%,#44434d ${pct}%,#44434d 100%)`; };
-setSliderFill(massSlider); setSliderFill(speedSlider);
+setSliderFill(massSlider); setSliderFill(speedSlider); setSliderFill(lensSlider);
 massSlider.addEventListener('input', () => {
   mass = Number(massSlider.value); $('#mass-number').textContent = mass.toFixed(1); $('#mass-value').innerHTML = `${mass.toFixed(1)}M <small>☉</small>`;
-  const km = mass * 2.95; $('#radius-value').innerHTML = `${km.toFixed(1)} <small>km</small>`;
+  const km = schwarzschildRadiusKm(mass); $('#radius-value').innerHTML = `${km.toFixed(1)} <small>km</small>`;
   blackHole.scale.setScalar(0.82 + mass * 0.043); setSliderFill(massSlider);
 });
 speedSlider.addEventListener('input', () => { speed = Number(speedSlider.value); $('#speed-number').textContent = speed.toFixed(1); setSliderFill(speedSlider); });
-$('#lens-toggle').addEventListener('click', (event) => { lensing = !lensing; const button = event.currentTarget; button.classList.toggle('is-on', lensing); button.setAttribute('aria-checked', String(lensing)); photonRing.visible = photonHaloRing.visible = lensing; lensingPass.uniforms.uStrength.value = lensing ? 1.1 : 0; });
+lensSlider.addEventListener('input', () => { lensStrength = Number(lensSlider.value); $('#lens-number').textContent = lensStrength.toFixed(1); lensingPass.uniforms.uStrength.value = lensing ? lensStrength : 0; setSliderFill(lensSlider); });
+$('#lens-toggle').addEventListener('click', (event) => { lensing = !lensing; const button = event.currentTarget; button.classList.toggle('is-on', lensing); button.setAttribute('aria-checked', String(lensing)); photonRing.visible = photonHaloRing.visible = lensing; lensingPass.uniforms.uStrength.value = lensing ? lensStrength : 0; toast(lensing ? 'GRAVITATIONAL LENSING ON · APPROXIMATE LIGHT-BENDING' : 'GRAVITATIONAL LENSING OFF'); });
 $('#disk-toggle').addEventListener('click', (event) => { diskVisible = !diskVisible; const button = event.currentTarget; button.classList.toggle('is-on', diskVisible); button.setAttribute('aria-checked', String(diskVisible)); disk.visible = innerDisk.visible = outerDisk.visible = dust.visible = diskVisible; });
 $('#collapse-controls').addEventListener('click', (event) => { const panel = document.querySelector('.controls'); panel.classList.toggle('is-collapsed'); event.currentTarget.textContent = panel.classList.contains('is-collapsed') ? '+' : '−'; event.currentTarget.setAttribute('aria-label', panel.classList.contains('is-collapsed') ? 'Expand controls' : 'Collapse controls'); });
 let toastTimer;
@@ -218,7 +240,10 @@ function animate() {
   const lensCenter = blackHole.getWorldPosition(new THREE.Vector3()).project(camera);
   lensingPass.uniforms.uLensCenter.value.set(lensCenter.x * 0.5 + 0.5, lensCenter.y * 0.5 + 0.5);
   lensingPass.uniforms.uAspect.value = camera.aspect;
-  lensingPass.uniforms.uLensRadius.value = (1.05 * blackHole.scale.x) / (2 * cameraDistance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)));
+  const horizonRadius = projectedRadiusUv(1.05 * blackHole.scale.x, cameraDistance, THREE.MathUtils.degToRad(camera.fov));
+  lensingPass.uniforms.uHorizonRadius.value = horizonRadius;
+  // Source distances are not modeled; set a deliberately visible apparent Einstein radius.
+  lensingPass.uniforms.uEinsteinRadius.value = apparentEinsteinRadiusUv(horizonRadius);
   composer.render();
 }
 animate();
