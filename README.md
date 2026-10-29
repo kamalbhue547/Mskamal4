@@ -11,9 +11,10 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. To create a production build:
+Open the local URL printed by Vite. Run the automated physics checks and create a production build:
 
 ```bash
+npm test
 npm run build
 npm run preview
 ```
@@ -22,7 +23,7 @@ npm run preview
 
 - **Drag** the scene to orbit the black hole.
 - **Scroll** or use the mass controls to change your view and the object's scale.
-- Adjust **time dilation** to change the accretion-disk flow.
+- Adjust the **disk flow rate** and **light-bending strength**.
 - Toggle **gravitational lensing** and the **accretion disk** independently.
 - Select **Enter the Event Horizon** for a closer approach.
 
